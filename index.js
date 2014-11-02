@@ -118,9 +118,6 @@ var getCueSheet = function(url){
 
 var downloadMp3 = function(url){
 
-    //todo: remove
-    return 'tmp/mp3.mp3';
-
     var defer = Q.defer();
 
     var request = require('request');
