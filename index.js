@@ -10,7 +10,7 @@ var argv = process.argv.slice(2);
 
 //todo: read config
 //todo: debug in correct places
-//todo: enable/disable growl
+//todo: enable/disable growl/specify its options -> exchange node-notifier to growly
 
 var getPage = function(url){
     var defer = Q.defer();
@@ -190,12 +190,16 @@ var downloadMp3 = function(data){
 }
 
 var notify = function(data, callback){
-    var path = require('path');
 
+    if(!config.growl){
+        return false;
+    }
+
+    var path = require('path');
     var Growl = require('node-notifier').Growl;
 
     var notifier = new Growl({
-        name: 'A State of Trance' // Defaults as 'Node'
+        name: 'A State of Trance'
     });
 
     notifier.notify({
