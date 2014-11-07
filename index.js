@@ -11,7 +11,6 @@ var argv = process.argv.slice(2);
 //todo: read config
 //todo: debug in correct places
 //todo: enable/disable growl
-//todo: regard existing mp3
 
 var getPage = function(url){
     var defer = Q.defer();
@@ -112,16 +111,22 @@ var getEpisodeMetadata = function(body, issue){
     return defer.promise;
 }
 
-var getCueSheet = function(url){
+var getCueSheet = function(data){
+
+    var parser = require('cue-parser');
+
+    if(fs.existsSync('tmp/'+data.episode+'.cue')){
+        return parser.parse('tmp/'+data.episode+'.cue');
+    }
+
     var defer = Q.defer();
 
-    getPage(url)
-        .then(function(data){
+    getPage(data.cuesheet)
+        .then(function(body){
 
-            fs.writeFileSync('tmp/cue.cue', data);
+            fs.writeFileSync('tmp/'+data.episode+'.cue', body);
 
-            var parser = require('cue-parser');
-            var result = parser.parse('tmp/cue.cue');
+            var result = parser.parse('tmp/'+data.episode+'.cue');
 
             defer.resolve(
                 result
@@ -131,7 +136,11 @@ var getCueSheet = function(url){
     return defer.promise;
 }
 
-var downloadMp3 = function(url){
+var downloadMp3 = function(data){
+
+    if(fs.existsSync('tmp/'+data.episode+'.mp3')){
+        return 'tmp/'+data.episode+'.mp3';
+    }
 
     var defer = Q.defer();
 
@@ -145,7 +154,7 @@ var downloadMp3 = function(url){
     var start = true;
     var max = 0;
 
-    progress(request(url), {
+    progress(request(data.mp3), {
         throttle: 2000,  // Throttle the progress event to 2000ms, defaults to 1000ms
         delay: 1000      // Only start to emit after 1000ms delay, defaults to 0ms
     })
@@ -170,17 +179,17 @@ var downloadMp3 = function(url){
 
         })
         .on('error', defer.reject)
-        .pipe(fs.createWriteStream('tmp/mp3.mp3'))
+        .pipe(fs.createWriteStream('tmp/'+data.episode+'.mp3'))
         .on('close', function (err) {
             bar.tick(max-previous);
 
-            defer.resolve('tmp/mp3.mp3');
+            defer.resolve('tmp/'+data.episode+'.mp3');
         });
 
     return defer.promise;
 }
 
-var notify = function(issue, callback){
+var notify = function(data, callback){
     var path = require('path');
 
     var Growl = require('node-notifier').Growl;
@@ -191,7 +200,7 @@ var notify = function(issue, callback){
 
     notifier.notify({
         title: 'New podcast!',
-        message: 'The '+issue+' has arrived and is ready for playing!',
+        message: 'The '+data.episode+' has arrived and is ready for playing!',
         icon: path.join(__dirname, 'icon.png'),
         wait: !!callback,
         sticky: true
@@ -290,9 +299,9 @@ var markLatest = function(data){
     fs.writeFile('tmp/latest', data.episode);
 }
 
-var cleanup = function(){
-    fs.unlink('tmp/cue.cue');
-    fs.unlink('tmp/mp3.mp3');
+var cleanup = function(data){
+    fs.unlink('tmp/'+data.episode+'.cue');
+    fs.unlink('tmp/'+data.episode+'.mp3');
 };
 
 var task = getPage('http://cuenation.com/?page=cues&folder=asot');
@@ -310,8 +319,8 @@ if(argv[0]){
 task = task
     .then(function downloadAllFiles(data){
         return [
-            getCueSheet(data.cuesheet),
-            downloadMp3(data.mp3),
+            getCueSheet(data),
+            downloadMp3(data),
             data
         ];
     })
@@ -319,8 +328,8 @@ task = task
     .then(function makeDone(data){
         return [
             markLatest(data),
-            cleanup(data),
-            notify(data.episode)
+            //cleanup(data),
+            notify(data)
         ];
     })
     .fail(function(err){
