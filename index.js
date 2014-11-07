@@ -6,10 +6,12 @@ var Q = require('q');
 var latest = fs.readFileSync('tmp/latest').toString();
 var config = require('./package.json');
 
+var argv = process.argv.slice(2);
+
 //todo: read config
 //todo: debug in correct places
 //todo: enable/disable growl
-//todo: cli for downloading a specified episode
+//todo: regard existing mp3
 
 var getPage = function(url){
     var defer = Q.defer();
@@ -32,7 +34,7 @@ var getPage = function(url){
     return defer.promise;
 }
 
-var hasNewEpisode = function(body){
+var getEpisodeMetadata = function(body, issue){
 
     var defer = Q.defer();
 
@@ -41,6 +43,8 @@ var hasNewEpisode = function(body){
     var list = cheerio('p.list a', doc);
 
     var re = /([0-9\.]+) \S([0-9]{4}\-[0-9]{2}\-[0-9]{2}).+\[Livesets\.us\]/;
+
+    var found = false;
 
     list.each(function(i){
 
@@ -60,10 +64,17 @@ var hasNewEpisode = function(body){
         var episode = results[1];
         var date = results[2];
 
-        if(episode<=latest){
-            defer.reject('no new episodes');
-            return false;
+        if(!issue) {
+            if(episode<=latest){
+                return false;
+            }
+        }else{
+            if(episode != issue){
+                return;
+            }
         }
+
+        found = true;
 
         getPage('http://cuenation.com/'+elem.attr('href'))
             .then(function getComponents(body){
@@ -93,6 +104,10 @@ var hasNewEpisode = function(body){
         return false;
 
     });
+
+    if(!found){
+        defer.reject('episode not found');
+    }
 
     return defer.promise;
 }
@@ -280,8 +295,19 @@ var cleanup = function(){
     fs.unlink('tmp/mp3.mp3');
 };
 
-getPage('http://cuenation.com/?page=cues&folder=asot')
-    .then(hasNewEpisode)
+var task = getPage('http://cuenation.com/?page=cues&folder=asot');
+
+if(argv[0]){
+    task = task.then(function(data){
+        return getEpisodeMetadata(data, argv[0]);
+    });
+}else{
+    task = task
+        .then(getEpisodeMetadata);
+
+}
+
+task = task
     .then(function downloadAllFiles(data){
         return [
             getCueSheet(data.cuesheet),
