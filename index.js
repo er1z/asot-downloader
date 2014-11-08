@@ -2,6 +2,7 @@ var request = require('request');
 var cheerio = require('cheerio');
 var fs = require('fs');
 var Q = require('q');
+var ProgressBar = require('progress');
 
 var latest = fs.readFileSync('tmp/latest').toString();
 var config = require('./package.json');
@@ -9,7 +10,6 @@ var config = require('./package.json');
 var argv = process.argv.slice(2);
 
 //todo: comments
-//todo: progress in split
 
 var debug = function(str,level){
     level = !!level ? level : 1;
@@ -183,7 +183,6 @@ var downloadMp3 = function(data){
 
     var request = require('request');
     var progress = require('request-progress');
-    var ProgressBar = require('progress');
 
     var bar;
     var previous;
@@ -201,7 +200,7 @@ var downloadMp3 = function(data){
                 bar = new ProgressBar('  downloading [:bar] :percent :etas', {
                     complete: '=',
                     incomplete: ' ',
-                    width: 20,
+                    width: 30,
                     total: state.total
                 });
                 start = false;
@@ -297,6 +296,13 @@ var splitFiles = function(cue,mp3,data){
         debug(e, 2);
     };
 
+    var bar = new ProgressBar('  splitting [:bar] :percent :etas', {
+        complete: '=',
+        incomplete: ' ',
+        width: 30,
+        total: tracks.length
+    });
+
     tracks.forEach(function(i,v){
 
         var stamp = null;
@@ -343,6 +349,7 @@ var splitFiles = function(cue,mp3,data){
                 o.outputOption(options);
 
                 o.on('end', function(){
+                    bar.tick();
                     debug("splitting done", 2);
                     defer.resolve();
                 })
