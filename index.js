@@ -8,10 +8,21 @@ var config = require('./package.json');
 
 var argv = process.argv.slice(2);
 
-//todo: debug in correct places
+//todo: comments
+//todo: progress in split
+
+var debug = function(str,level){
+    level = !!level ? level : 1;
+
+    if(config.verbose>=level){
+        console.log(str);
+    }
+}
 
 var getPage = function(url){
     var defer = Q.defer();
+
+    debug("Fetching page: "+url, 2);
 
     request({
         url: url,
@@ -21,6 +32,9 @@ var getPage = function(url){
             'Referer': 'http://cuenation.com'
         }
     }, function(error, response, body){
+
+        debug("Fetched "+body.length+" bytes, HTTP code: "+response.statusCode, 2);
+
         if(response.statusCode==200){
             defer.resolve(body);
         }else{
@@ -32,6 +46,12 @@ var getPage = function(url){
 }
 
 var getEpisodeMetadata = function(body, issue){
+
+    if(issue){
+        debug("Getting metadata for episode: "+issue);
+    }else{
+        debug("Getting metadata for newest episode. Latest fetched: "+latest);
+    }
 
     var defer = Q.defer();
 
@@ -63,6 +83,7 @@ var getEpisodeMetadata = function(body, issue){
 
         if(!issue) {
             if(episode<=latest){
+                debug("No newer episode found");
                 return false;
             }
         }else{
@@ -71,10 +92,14 @@ var getEpisodeMetadata = function(body, issue){
             }
         }
 
+        debug("Episode found, fetching metadata", 2);
+
         found = true;
 
         getPage('http://cuenation.com/'+elem.attr('href'))
             .then(function getComponents(body){
+
+                debug("Metadata fetched", 2);
 
                 var doc = cheerio(body);
                 var links = cheerio('a.clear', doc);
@@ -84,12 +109,18 @@ var getEpisodeMetadata = function(body, issue){
                 var mp3Link = links.eq(1).attr('href');
                 mp3Link = decodeURIComponent(mp3Link.substr(mp3Link.indexOf('=')+1));
 
+                debug("Cuesheet link: "+cuelink, 2);
+                debug("Mp3 site link: "+mp3Link, 2);
+
                 return [cuelink, getPage(mp3Link).then(function(body){
                     var doc = cheerio('#veri8 a', body);
                     return doc.eq(0).attr('href');
                 })];
 
             }).spread(function(cuelink,mp3Link){
+
+                debug("Fetched mp3 site link: "+mp3Link, 2);
+
                 defer.resolve({
                     episode: episode,
                     date: date,
@@ -113,7 +144,10 @@ var getCueSheet = function(data){
 
     var parser = require('cue-parser');
 
+    debug("Getting cuesheet");
+
     if(fs.existsSync(config.directories.tmp+'/'+data.episode+'.cue')){
+        debug("Fetching skipped: found cached");
         return parser.parse(config.directories.tmp+'/'+data.episode+'.cue');
     }
 
@@ -121,6 +155,8 @@ var getCueSheet = function(data){
 
     getPage(data.cuesheet)
         .then(function(body){
+
+            debug("Cuesheet downloaded");
 
             fs.writeFileSync(config.directories.tmp+'/'+data.episode+'.cue', body);
 
@@ -136,7 +172,10 @@ var getCueSheet = function(data){
 
 var downloadMp3 = function(data){
 
+    debug("Getting mp3 file");
+
     if(fs.existsSync(config.directories.tmp+'/'+data.episode+'.mp3')){
+        debug("Found cached mp3 file");
         return config.directories.tmp+'/'+data.episode+'.mp3';
     }
 
@@ -167,6 +206,7 @@ var downloadMp3 = function(data){
                 });
                 start = false;
                 max = state.total;
+                debug("Mp3 file size: "+max);
             }
 
             if(previous){
@@ -190,8 +230,11 @@ var downloadMp3 = function(data){
 var notify = function(data){
 
     if(!config.growl){
+        debug("Notifications disabled", 2);
         return false;
     }
+
+    debug("Sending notification", 2);
 
     var growler = require('growler');
 
@@ -216,6 +259,7 @@ var notify = function(data){
 
     myApp.register(function(err) {
         if (err){
+            debug("Growl notification error: "+err);
             throw err;
         }
 
@@ -232,6 +276,8 @@ var notify = function(data){
 
 var splitFiles = function(cue,mp3,data){
 
+    debug("Splitting files");
+
     var defer = Q.defer();
 
     var ffmpeg = require('fluent-ffmpeg');
@@ -247,7 +293,9 @@ var splitFiles = function(cue,mp3,data){
     //ignore existing directory
     try{
         require('fs').mkdir(cwd);
-    }catch(e){};
+    }catch(e){
+        debug(e, 2);
+    };
 
     tracks.forEach(function(i,v){
 
@@ -274,7 +322,7 @@ var splitFiles = function(cue,mp3,data){
             result = result.then(function(){
                 var defer = Q.defer();
 
-                console.log(i.performer, '-', i.title, start, duration);
+                debug("Splitting: "+i.performer+" - "+i.title+", start: "+start+", duration: "+duration, 2);
 
                 var o = ffmpeg(mp3)
                     .audioCodec('copy')
@@ -292,18 +340,17 @@ var splitFiles = function(cue,mp3,data){
                 ];
                 var filename = (v<10 ? '0'+v : v)+'_'+slug(i.performer, '_')+'_-_'+slug(i.title);
 
-                console.log(filename);
-
                 o.outputOption(options);
 
                 o.on('end', function(){
+                    debug("splitting done", 2);
                     defer.resolve();
                 })
-                    .on('error', function(err){
-                        console.log(err);
-                        defer.reject()
-                    })
-                    .save(cwd+'/'+filename+'.mp3');
+                .on('error', function(err){
+                    debug(err);
+                    defer.reject()
+                })
+                .save(cwd+'/'+filename+'.mp3');
 
                 return defer.promise;
             });
@@ -321,10 +368,12 @@ var splitFiles = function(cue,mp3,data){
 }
 
 var markLatest = function(data){
+    debug("Marking "+data.episode+" as latest downloaded", 2);
     fs.writeFile(config.directories.tmp+'/latest', data.episode);
 }
 
 var cleanup = function(data){
+    debug("Cleaning up", 2);
     fs.unlink(config.directories.tmp+'/'+data.episode+'.cue');
     fs.unlink(config.directories.tmp+'/'+data.episode+'.mp3');
 };

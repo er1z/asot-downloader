@@ -11,6 +11,7 @@
       "tmp": "tmp",
       "asots": "tmp"
   },
+  "verbose": 2,
   "dependencies": {
     "cheerio": "^0.17.0",
     "cue-parser": "0.0.3",
