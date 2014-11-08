@@ -7,7 +7,10 @@
     "port": "23053",
     "pass": ""
   },
-  "asotDir": "tmp",
+  "directories": {
+      "tmp": "tmp",
+      "asots": "tmp"
+  },
   "dependencies": {
     "cheerio": "^0.17.0",
     "cue-parser": "0.0.3",

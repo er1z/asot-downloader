@@ -8,7 +8,6 @@ var config = require('./package.json');
 
 var argv = process.argv.slice(2);
 
-//todo: read config
 //todo: debug in correct places
 
 var getPage = function(url){
@@ -114,8 +113,8 @@ var getCueSheet = function(data){
 
     var parser = require('cue-parser');
 
-    if(fs.existsSync('tmp/'+data.episode+'.cue')){
-        return parser.parse('tmp/'+data.episode+'.cue');
+    if(fs.existsSync(config.directories.tmp+'/'+data.episode+'.cue')){
+        return parser.parse(config.directories.tmp+'/'+data.episode+'.cue');
     }
 
     var defer = Q.defer();
@@ -123,9 +122,9 @@ var getCueSheet = function(data){
     getPage(data.cuesheet)
         .then(function(body){
 
-            fs.writeFileSync('tmp/'+data.episode+'.cue', body);
+            fs.writeFileSync(config.directories.tmp+'/'+data.episode+'.cue', body);
 
-            var result = parser.parse('tmp/'+data.episode+'.cue');
+            var result = parser.parse(config.directories.tmp+'/'+data.episode+'.cue');
 
             defer.resolve(
                 result
@@ -137,8 +136,8 @@ var getCueSheet = function(data){
 
 var downloadMp3 = function(data){
 
-    if(fs.existsSync('tmp/'+data.episode+'.mp3')){
-        return 'tmp/'+data.episode+'.mp3';
+    if(fs.existsSync(config.directories.tmp+'/'+data.episode+'.mp3')){
+        return config.directories.tmp+'/'+data.episode+'.mp3';
     }
 
     var defer = Q.defer();
@@ -182,7 +181,7 @@ var downloadMp3 = function(data){
         .on('close', function (err) {
             bar.tick(max-previous);
 
-            defer.resolve('tmp/'+data.episode+'.mp3');
+            defer.resolve(config.directories.tmp+'/'+data.episode+'.mp3');
         });
 
     return defer.promise;
@@ -222,7 +221,7 @@ var notify = function(data){
 
         myApp.sendNotification('Default Notification', {
             title: 'New episode arrived!',
-            text: 'The '+data.episode+' issue has been downloaded!',
+            text: 'The episode '+data.episode+' has been downloaded!',
             sticky: true
         });
 
@@ -243,8 +242,12 @@ var splitFiles = function(cue,mp3,data){
     var start = '0:0';
 
     var tracks = cue.files[0].tracks;
-    var cwd = 'tmp/'+data.episode;
-    require('fs').mkdir(cwd);
+    var cwd = config.directories.asots+'/'+data.episode;
+
+    //ignore existing directory
+    try{
+        require('fs').mkdir(cwd);
+    }catch(e){};
 
     tracks.forEach(function(i,v){
 
@@ -318,12 +321,12 @@ var splitFiles = function(cue,mp3,data){
 }
 
 var markLatest = function(data){
-    fs.writeFile('tmp/latest', data.episode);
+    fs.writeFile(config.directories.tmp+'/latest', data.episode);
 }
 
 var cleanup = function(data){
-    fs.unlink('tmp/'+data.episode+'.cue');
-    fs.unlink('tmp/'+data.episode+'.mp3');
+    fs.unlink(config.directories.tmp+'/'+data.episode+'.cue');
+    fs.unlink(config.directories.tmp+'/'+data.episode+'.mp3');
 };
 
 var task = getPage('http://cuenation.com/?page=cues&folder=asot');
