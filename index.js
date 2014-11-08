@@ -10,7 +10,6 @@ var argv = process.argv.slice(2);
 
 //todo: read config
 //todo: debug in correct places
-//todo: enable/disable growl/specify its options -> exchange node-notifier to growly
 
 var getPage = function(url){
     var defer = Q.defer();
@@ -189,26 +188,45 @@ var downloadMp3 = function(data){
     return defer.promise;
 }
 
-var notify = function(data, callback){
+var notify = function(data){
 
     if(!config.growl){
         return false;
     }
 
-    var path = require('path');
-    var Growl = require('node-notifier').Growl;
+    var growler = require('growler');
 
-    var notifier = new Growl({
-        name: 'A State of Trance'
+    var myApp = new growler.GrowlApplication('A State of Trance', {
+        hostname: config.growl.host, // IP or DNS
+        port: config.growl.port, // Default GNTP port
+        // timeout: 5000, // Socket inactivity timeout
+        icon: fs.readFileSync('icon.png')
+    }, {
+        password: config.growl.pass // Password is set in the Growl client settings
+        // hashAlgorithm: 'SHA512', // MD5, SHA1, SHA256 (default), SHA512
+        // encryption: 'AES' // AES, DES or 3DES, by default no encryption
     });
 
-    notifier.notify({
-        title: 'New podcast!',
-        message: 'The '+data.episode+' has arrived and is ready for playing!',
-        icon: path.join(__dirname, 'icon.png'),
-        wait: !!callback,
-        sticky: true
-    }, callback);
+    myApp.setNotifications({
+        'Default Notification': {
+            displayName: 'A State of Trance',
+            enabled: true
+        }
+    });
+
+
+    myApp.register(function(err) {
+        if (err){
+            throw err;
+        }
+
+        myApp.sendNotification('Default Notification', {
+            title: 'New episode arrived!',
+            text: 'The '+data.episode+' issue has been downloaded!',
+            sticky: true
+        });
+
+    });
 
     return true;
 }
@@ -332,7 +350,7 @@ task = task
     .then(function makeDone(data){
         return [
             markLatest(data),
-            //cleanup(data),
+            cleanup(data),
             notify(data)
         ];
     })

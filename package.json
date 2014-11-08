@@ -5,7 +5,6 @@
   "growl": {
     "host": "localhost",
     "port": "23053",
-    "user": "",
     "pass": ""
   },
   "asotDir": "tmp",
@@ -13,7 +12,7 @@
     "cheerio": "^0.17.0",
     "cue-parser": "0.0.3",
     "fluent-ffmpeg": "^2.0.0-rc2",
-    "node-notifier": "^4.0.2",
+    "growler": "git://github.com/betamos/Node-Growler.git",
     "progress": "^1.1.8",
     "q": "^1.0.1",
     "request": "^2.47.0",
