@@ -502,11 +502,16 @@ task = task
     })
     .spread(splitFiles)
     .then(function makeDone(data){
-        return [
-            markLatest(data),
+        var tasks = [
             cleanup(data),
             notify(data)
         ];
+        
+        if(!argv[0]){
+            tasks.unshift(markLatest(data));
+        }
+        
+        return tasks;
     })
     .fail(function(err){
         console.error(err);
